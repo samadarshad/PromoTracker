@@ -11,6 +11,7 @@ from aws_cdk import (
     aws_events_targets as targets,
     aws_iam as iam,
     aws_logs as logs,
+    aws_secretsmanager as secretsmanager,
     CfnOutput,
 )
 from constructs import Construct
@@ -230,6 +231,16 @@ class InfrastructureStack(Stack):
 
         self.html_bucket.grant_read_write(self.scraper_fn)
         self.html_bucket.grant_read(self.detector_fn)
+
+        # Grant Parameter Store access to scraper Lambda (for Firecrawl API key)
+        self.scraper_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:aws:ssm:eu-west-2:{self.account}:parameter/PromoTracker/FirecrawlApiKey"
+                ]
+            )
+        )
 
         # ======================
         # Step Functions State Machine

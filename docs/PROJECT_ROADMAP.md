@@ -16,18 +16,17 @@
   - [ ] Add `LICENSE` file (MIT recommended)
 
 - [ ] **Set Up AWS Account & Billing**
-  - [ ] Create dedicated AWS account (or use existing with separate IAM user)
-  - [ ] Enable billing alerts (set at $2, $5, $10 thresholds)
+  - [X] Create dedicated AWS account (or use existing with separate IAM user)
+  - [X] Enable billing alerts (set at $0.01)
   - [ ] Configure Cost Explorer and budget tracking
-  - [ ] Create IAM user with programmatic access for development
-  - [ ] Set up MFA for root account
+  - [X] Create IAM user with programmatic access for development
+  - [X] Set up MFA for root account
 
 - [ ] **Local Development Environment**
-  - [ ] Install AWS CLI and configure credentials
-  - [ ] Install AWS CDK CLI (`npm install -g aws-cdk`)
-  - [ ] Install Python 3.11+ and create virtual environment
-  - [ ] Install Docker Desktop (for local Lambda testing)
-  - [ ] Install AWS SAM CLI (for local Step Functions testing)
+  - [X] Install AWS CLI and configure credentials
+  - [X] Install AWS CDK CLI (`npm install -g aws-cdk`)
+  - [X] Install Python 3.14 and create virtual environment
+  - [X] Install AWS SAM CLI (for local testing)
   - [ ] Set up VS Code with extensions: Python, AWS Toolkit, DynamoDB
 
 - [ ] **Project Structure**
@@ -70,7 +69,7 @@
 ### 1.1 Infrastructure as Code (CDK)
 
 - [ ] **Initialize CDK Project**
-  - [ ] Run `cdk init app --language=typescript` in `/infrastructure/`
+  - [X] Run `cdk init app --language=typescript` in `/infrastructure/`
   - [ ] Define CDK stacks architecture:
     - [ ] `StorageStack` (DynamoDB tables, S3 buckets)
     - [ ] `PipelineStack` (Step Functions, EventBridge, Lambdas)

@@ -1,2 +1,6 @@
 
 .DS_Store
+
+lambdas/shared_layer/python/__pycache__/
+
+lambdas/shared_layer/python/

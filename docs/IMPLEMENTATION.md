@@ -76,31 +76,26 @@ N/A (invoked by Step Functions)
 }
 ```
 ### Responsibilities
-1. **Try Free HTTP Scraping**
-    - Uses custom user agent
-    - Times out after 10 seconds
-    - Success rate expected ~70–80%
-
-2. **Fallback: Firecrawl API**
-    - Handles JS-heavy websites
-    - Returns markdown instead of HTML
-    - Includes metadata extraction
+1. **Firecrawl API Scraping**
+    - Uses Firecrawl API v2 with markdown output format
+    - Extracts main content only (skips navigation, footers, scripts)
+    - Handles JavaScript-rendered content
+    - Returns markdown format for LLM cost efficiency (vs. HTML)
     - More consistent scraping accuracy (~95%+)
 
-3. Store raw content in S3:
+2. Store raw content in S3:
 
 ```
-s3://promo-tracker-html/scrapes/YYYY/MM/DD/<website>_timestamp_basic.html
-s3://promo-tracker-html/scrapes/YYYY/MM/DD/<website>_timestamp_firecrawl.md
+s3://promo-tracker-html/scrapes/YYYY/MM/DD/<website>_timestamp.md
 ```
 
-4. Write scrape metrics to DynamoDB (ScrapingMetrics)
+3. Write scrape metrics to DynamoDB (ScrapingMetrics)
 
 ### Output
 ```
 {
   "website_id": "john_lewis",
-  "s3_key": "scrapes/2025/11/15/john_lewis_20251115_090132_basic.html",
+  "s3_key": "scrapes/2025/11/15/john_lewis_20251115_090132.md",
   "selectors": { ... }
 }
 ```

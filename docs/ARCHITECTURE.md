@@ -72,8 +72,8 @@ The architecture demonstrates cloud design, LLM integration, data engineering, a
 2. **Get Websites Lambda** loads configuration  
 3. **Map State** fans out tasks  
 4. **Scraper Lambda**  
-   - Try free HTTP scrape  
-   - Fallback to Firecrawl  
+   - Firecrawl API scraping with markdown output  
+   - Extract main content only  
    - Store in S3  
 5. **Promo Detector Lambda**  
    - Tier 1: CSS selectors  
@@ -111,10 +111,11 @@ Endpoints include: list stores, get history, get prediction.
 - Low-latency lookups  
 - Free tier friendly  
 
-### Two-Tier Scraping
-1. Free HTTP scraping  
-2. Firecrawl fallback  
-Reduces costs by ~60%.
+### Firecrawl Scraping
+- Uses Firecrawl API v2 with markdown output  
+- Reduces LLM processing costs (markdown vs. raw HTML)  
+- Handles JavaScript-rendered content  
+- Consistent accuracy (~95%+)
 
 ### Three-Tier Detection
 1. Selectors (free)  

@@ -155,6 +155,14 @@ class InfrastructureStack(Stack):
             description="Shared utilities and dependencies"
         )
 
+        # Detector-specific layer for LLM dependencies
+        self.detector_layer = lambda_.LayerVersion(
+            self, "DetectorLayer",
+            code=lambda_.Code.from_asset("../lambdas/detector_layer"),
+            compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
+            description="Detector-specific dependencies (openai, beautifulsoup4, lxml)"
+        )
+
         # Common environment variables for all Lambdas
         common_env = {
             "WEBSITES_TABLE": self.websites_table.table_name,
@@ -196,7 +204,7 @@ class InfrastructureStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="handler.lambda_handler",
             code=lambda_.Code.from_asset("../lambdas/detector"),
-            layers=[self.shared_layer],
+            layers=[self.shared_layer, self.detector_layer],
             environment=common_env,
             timeout=Duration.seconds(300),
             memory_size=1024,
@@ -238,6 +246,16 @@ class InfrastructureStack(Stack):
                 actions=["ssm:GetParameter"],
                 resources=[
                     f"arn:aws:ssm:eu-west-2:{self.account}:parameter/PromoTracker/FirecrawlApiKey"
+                ]
+            )
+        )
+
+        # Grant Parameter Store access to detector Lambda (for OpenAI API key)
+        self.detector_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:aws:ssm:eu-west-2:{self.account}:parameter/PromoTracker/OpenAIApiKey"
                 ]
             )
         )

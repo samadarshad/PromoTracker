@@ -1,6 +1,18 @@
 
 .DS_Store
 
+# Lambda layer dependencies (installed via pip, not committed)
 lambdas/shared_layer/python/__pycache__/
-
 lambdas/shared_layer/python/
+lambdas/detector_layer/python/
+lambdas/*/python/
+
+# Python artifacts
+*.pyc
+__pycache__/
+*.dist-info/
+*.egg-info/
+
+# CDK
+infrastructure/cdk.out/
+infrastructure/cdk.context.json

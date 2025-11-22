@@ -22,14 +22,25 @@ echo ""
 
 # Step 1: Install Lambda layer dependencies
 echo "📦 Step 1: Installing Lambda layer dependencies..."
-cd "$PROJECT_DIR/lambdas/shared_layer"
 
+# Install shared layer dependencies
+cd "$PROJECT_DIR/lambdas/shared_layer"
 if [ -f "requirements.txt" ]; then
-    echo "  Installing to shared_layer/python/..."
+    echo "  Installing shared_layer dependencies..."
     pip install -r requirements.txt -t python/ --upgrade --quiet
-    echo -e "  ${GREEN}✓${NC} Dependencies installed"
+    echo -e "  ${GREEN}✓${NC} Shared layer dependencies installed"
 else
-    echo -e "  ${YELLOW}⚠${NC} No requirements.txt found, skipping"
+    echo -e "  ${YELLOW}⚠${NC} No shared_layer requirements.txt found"
+fi
+
+# Install detector layer dependencies (with Linux compatibility)
+cd "$PROJECT_DIR/lambdas/detector_layer"
+if [ -f "requirements.txt" ]; then
+    echo "  Installing detector_layer dependencies (Linux-compatible)..."
+    pip install --platform manylinux2014_x86_64 --target python --implementation cp --python-version 3.12 --only-binary=:all: -r requirements.txt --upgrade --quiet
+    echo -e "  ${GREEN}✓${NC} Detector layer dependencies installed"
+else
+    echo -e "  ${YELLOW}⚠${NC} No detector_layer requirements.txt found"
 fi
 echo ""
 
@@ -91,7 +102,8 @@ echo ""
 echo "This will:"
 echo "  - Create/update 4 DynamoDB tables"
 echo "  - Create/update 1 S3 bucket"
-echo "  - Deploy 4 Lambda functions with shared layer"
+echo "  - Deploy 2 Lambda layers (shared + detector)"
+echo "  - Deploy 4 Lambda functions"
 echo "  - Create Step Functions state machine"
 echo "  - Set up EventBridge scheduler"
 echo ""

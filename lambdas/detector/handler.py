@@ -1,6 +1,6 @@
 """
-Lambda function to detect promotions from scraped HTML.
-Implements Tier 1 (CSS selectors) and Tier 2 (LLM-based detection).
+Lambda function to detect promotions from scraped markdown.
+Uses LLM-based detection (OpenAI GPT) for promotion analysis.
 """
 import json
 import os
@@ -9,7 +9,6 @@ import boto3
 from datetime import datetime
 from decimal import Decimal
 from typing import Dict, Any, Optional
-from bs4 import BeautifulSoup
 from openai import OpenAI
 from dynamo_helper import DynamoDBHelper
 from s3_helper import S3Helper
@@ -32,47 +31,12 @@ except Exception as e:
     OPENAI_API_KEY = None
 
 
-def detect_with_css_selectors(html: str, selectors: list) -> Optional[Dict[str, Any]]:
+def detect_with_llm(markdown: str, website_name: str) -> Optional[Dict[str, Any]]:  
     """
-    Detect promotions using CSS selectors.
+    Detect promotions using OpenAI GPT for LLM-based analysis.
 
     Args:
-        html: HTML content
-        selectors: List of CSS selectors to try
-
-    Returns:
-        Dict with promotion details or None if not found
-    """
-    try:
-        soup = BeautifulSoup(html, 'html.parser')
-
-        for selector in selectors:
-            elements = soup.select(selector)
-
-            if elements:
-                promotion_text = ' '.join([elem.get_text(strip=True) for elem in elements])
-
-                return {
-                    'found': True,
-                    'method': 'css_selector',
-                    'selector': selector,
-                    'text': promotion_text[:500],  # Limit text length
-                    'confidence': 0.9
-                }
-
-        return None
-
-    except Exception as e:
-        logger.error(f"Error in CSS selector detection: {str(e)}")
-        raise
-
-
-def detect_with_llm(html: str, website_name: str) -> Optional[Dict[str, Any]]:
-    """
-    Detect promotions using OpenAI GPT (Tier 2 detection).
-
-    Args:
-        html: HTML content
+        markdown: Markdown content from Firecrawl
         website_name: Name of the website for context
 
     Returns:
@@ -83,21 +47,9 @@ def detect_with_llm(html: str, website_name: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        # Extract clean text from HTML
-        soup = BeautifulSoup(html, 'html.parser')
-
-        # Remove script and style elements
-        for script in soup(["script", "style", "nav", "footer", "header"]):
-            script.decompose()
-
-        # Get text and clean it up
-        text = soup.get_text()
-        lines = (line.strip() for line in text.splitlines())
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        text = ' '.join(chunk for chunk in chunks if chunk)
-
+        # Use markdown content directly (already clean from Firecrawl)
         # Limit text to avoid token limits (approximately 12000 characters ~= 3000 tokens for GPT-4o-mini)
-        text = text[:12000]
+        text = markdown[:12000]
 
         # Initialize OpenAI client
         client = OpenAI(api_key=OPENAI_API_KEY)
@@ -105,7 +57,7 @@ def detect_with_llm(html: str, website_name: str) -> Optional[Dict[str, Any]]:
         # Prepare prompt for GPT
         prompt = f"""You are analyzing the website content for {website_name} to detect if there are any active promotions, sales, or special offers.
 
-Website content:
+Website content (markdown):
 {text}
 
 Please analyze this content and determine if there are any current promotions, sales, discounts, or special offers.
@@ -185,30 +137,20 @@ def lambda_handler(event, context):
 
         website_id = website.get('website_id')
         s3_key = scrape_result.get('s3_key')
-        selectors = website.get('promotion_selectors', [])
 
         if not website_id or not s3_key:
             raise ValueError("Missing required fields: website_id or s3_key")
 
-        # Download HTML from S3
+        # Download markdown from S3
         s3_helper = S3Helper()
-        html_content = s3_helper.download_html(s3_key)
+        markdown_content = s3_helper.download_html(s3_key)
 
-        # Try Tier 1: CSS selector detection
-        detection_result = None
-
-        if selectors:
-            detection_result = detect_with_css_selectors(html_content, selectors)
-            if detection_result:
-                logger.info(f"Promotion found using CSS selectors for {website_id}")
-
-        # Try Tier 2: LLM detection (fallback if CSS selectors didn't find anything)
-        if not detection_result:
-            logger.info(f"CSS selectors didn't find promotion for {website_id}, trying LLM detection")
-            website_name = website.get('name', website_id)
-            detection_result = detect_with_llm(html_content, website_name)
-            if detection_result:
-                logger.info(f"Promotion found using LLM for {website_id}")
+        # LLM-based detection
+        logger.info(f"Starting LLM detection for {website_id}")
+        website_name = website.get('name', website_id)
+        detection_result = detect_with_llm(markdown_content, website_name)
+        if detection_result:
+            logger.info(f"Promotion found using LLM for {website_id}")
 
         # If promotion found, save to DynamoDB
         if detection_result and detection_result.get('found'):

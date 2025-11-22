@@ -105,31 +105,20 @@ s3://promo-tracker-html/scrapes/YYYY/MM/DD/<website>_timestamp.md
 ```
 {
   "website_id": "john_lewis",
-  "s3_key": "scrapes/2025/11/15/john_lewis_20251115_090132_basic.html",
-  "selectors": {
-    "banner": ".promo-banner",
-    "discount_text": ".sale-label"
-  }
+  "name": "John Lewis",
+  "s3_key": "scrapes/2025/11/15/john_lewis_20251115_090132.md"
 }
 ```
 ### Responsibilities
-**Tier 1: Selector-based Detection (Free)**
-- Parse HTML/markdown
-- Search banner text using configured selectors
-- Look for keywords:
-    - sale, discount, %, off, free shipping, promo, deal
-
-**Tier 2: LLM Detection (Paid)**
-- Claude Haiku prompt with strict JSON output
+**LLM Detection**
+- Uses OpenAI GPT-4o-mini for promotion analysis
+- Analyzes markdown content from Firecrawl
 - Detects site-wide promotional events
 - Extracts:
     - has_promotion
     - promotion_text
     - confidence
-    - promotion_type
-
-**Tier 3: Manual Flag**
-- Triggered if both above methods fail/ambiguous
+    - reasoning
 
 ### Output (written to PromoHistory)
 ```
@@ -139,8 +128,7 @@ s3://promo-tracker-html/scrapes/YYYY/MM/DD/<website>_timestamp.md
   "has_promotion": true,
   "promotion_text": "Black Friday – Up to 50% off",
   "confidence": 0.92,
-  "promotion_type": "seasonal_sale",
-  "s3_reference": "scrapes/2025/11/15/john_lewis_20251115_090132_basic.html",
+  "s3_reference": "scrapes/2025/11/15/john_lewis_20251115_090132.md",
   "detected_at": "2025-11-15T09:12:00Z"
 }
 ```

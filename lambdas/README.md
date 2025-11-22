@@ -47,7 +47,7 @@ lambdas/
       "name": "John Lewis",
       "url": "https://www.johnlewis.com",
       "enabled": "true",
-      "promotion_selectors": [".promo-banner"]
+      "category": "department_store"
     }
   ]
 }
@@ -103,8 +103,8 @@ lambdas/
 **Purpose**: Detect promotions from scraped HTML
 
 **Features**:
-- CSS selector-based detection (Tier 1)
-- BeautifulSoup HTML parsing
+- LLM-based promotion detection using OpenAI GPT
+- Markdown content analysis
 - Promotion data persistence
 
 **Input**:
@@ -112,10 +112,10 @@ lambdas/
 {
   "website": {
     "website_id": "johnlewis-uk",
-    "promotion_selectors": [".promo-banner", ".sale-message"]
+    "name": "John Lewis"
   },
   "scrape_result": {
-    "s3_key": "html/johnlewis-uk/2025-01-21T10:00:00.html"
+    "s3_key": "scrapes/2025/01/21/johnlewis-uk_20250121100000.md"
   }
 }
 ```

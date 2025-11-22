@@ -22,7 +22,7 @@ The architecture demonstrates cloud design, LLM integration, data engineering, a
 
 ## Functional
 1. Daily scrape ~30 websites  
-2. Detect promotions via selectors or LLM  
+2. Detect promotions via LLM  
 3. Forecast next sale using time-series modelling  
 4. Provide web UI and REST API  
 5. Store scrapes, detection results, and predictions  
@@ -39,7 +39,7 @@ The architecture demonstrates cloud design, LLM integration, data engineering, a
 
 # 3. High-Level Architecture
 
-![Promo Tracker Architecture Diagram](docs/architecture-diagram.png)
+![Promo Tracker Architecture Diagram](architecture-diagram.png)
 
 ## Subsystems
 
@@ -76,9 +76,7 @@ The architecture demonstrates cloud design, LLM integration, data engineering, a
    - Extract main content only  
    - Store in S3  
 5. **Promo Detector Lambda**  
-   - Tier 1: CSS selectors  
-   - Tier 2: LLM detection  
-   - Tier 3: Fallback/manual flag  
+   - LLM-based promotion detection  
    - Write to `PromoHistory`  
 6. **Prediction Engine Lambda**  
    - Choose model (Prophet or heuristic)  
@@ -91,7 +89,6 @@ Endpoints include: list stores, get history, get prediction.
 ## 3. Onboarding Flow
 - Authenticated POST `/stores`  
 - Immediate scrape + detection  
-- Extract selectors  
 - Add new configuration to `Websites` table  
 
 ---
@@ -117,10 +114,10 @@ Endpoints include: list stores, get history, get prediction.
 - Handles JavaScript-rendered content  
 - Consistent accuracy (~95%+)
 
-### Three-Tier Detection
-1. Selectors (free)  
-2. LLM detection (fallback)  
-3. Manual flag (rare)
+### LLM-Based Detection
+- Uses OpenAI GPT-4o-mini for promotion analysis  
+- Analyzes markdown content from Firecrawl  
+- High accuracy with consistent results
 
 ### Prediction Strategy
 - Prophet for rich data  
@@ -167,7 +164,6 @@ Scraping method, success rate, and cost data.
 
 Designed to scale to **1000+ websites**:
 - Controlled concurrency in Map State  
-- Selector learning reduces LLM usage  
 - Even partitioning across DynamoDB  
 - Stateless Lambdas for horizontal scaling  
 

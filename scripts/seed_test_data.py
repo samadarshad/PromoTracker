@@ -13,11 +13,6 @@ TEST_WEBSITES = [
         'name': 'John Lewis & Partners',
         'url': 'https://www.johnlewis.com',
         'enabled': 'true',
-        'promotion_selectors': [
-            '.promo-banner',
-            '.sale-message',
-            '[data-test="promotion-banner"]'
-        ],
         'category': 'department_store'
     },
     {
@@ -25,11 +20,6 @@ TEST_WEBSITES = [
         'name': 'Amazon UK',
         'url': 'https://www.amazon.co.uk',
         'enabled': 'true',
-        'promotion_selectors': [
-            '#promo-grid',
-            '.deals-sash',
-            '.badge-wrapper'
-        ],
         'category': 'marketplace'
     },
     {
@@ -37,10 +27,6 @@ TEST_WEBSITES = [
         'name': 'Currys',
         'url': 'https://www.currys.co.uk',
         'enabled': 'true',
-        'promotion_selectors': [
-            '.promotion-message',
-            '.sale-banner'
-        ],
         'category': 'electronics'
     },
     {
@@ -48,10 +34,6 @@ TEST_WEBSITES = [
         'name': 'Argos',
         'url': 'https://www.argos.co.uk',
         'enabled': 'true',
-        'promotion_selectors': [
-            '.promo-strip',
-            '.sale-info'
-        ],
         'category': 'general_merchandise'
     },
     {
@@ -59,10 +41,6 @@ TEST_WEBSITES = [
         'name': 'Boots',
         'url': 'https://www.boots.com',
         'enabled': 'true',
-        'promotion_selectors': [
-            '.offer-message',
-            '.promo-banner'
-        ],
         'category': 'health_beauty'
     }
 ]

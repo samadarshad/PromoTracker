@@ -10,9 +10,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Dict, Any, Optional
 from openai import OpenAI
-from dynamo_helper import DynamoDBHelper
-from s3_helper import S3Helper
-from logger import get_logger
+from shared.dynamo_helper import DynamoDBHelper
+from shared.s3_helper import S3Helper
+from shared.logger import get_logger
 
 logger = get_logger(__name__)
 

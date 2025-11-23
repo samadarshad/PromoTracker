@@ -144,15 +144,23 @@ class InfrastructureStack(Stack):
         )
 
         # ======================
-        # Lambda Functions
+        # Lambda Layers
         # ======================
 
-        # Shared Lambda layer for common dependencies
-        self.shared_layer = lambda_.LayerVersion(
-            self, "SharedLayer",
-            code=lambda_.Code.from_asset("../lambdas/shared_layer"),
+        # Shared code layer (custom utilities)
+        self.shared_code_layer = lambda_.LayerVersion(
+            self, "SharedCodeLayer",
+            code=lambda_.Code.from_asset("../layers/shared_code"),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
-            description="Shared utilities and dependencies"
+            description="Shared internal code (logging, DB, S3 helpers)"
+        )
+
+        # Dependencies layer (third-party packages: boto3, requests, etc.)
+        self.dependencies_layer = lambda_.LayerVersion(
+            self, "DependenciesLayer",
+            code=lambda_.Code.from_asset("../layers/dependencies"),
+            compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
+            description="Third-party dependencies (boto3, requests, pydantic, etc.)"
         )
 
         # Detector-specific layer for LLM dependencies
@@ -178,7 +186,7 @@ class InfrastructureStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="handler.lambda_handler",
             code=lambda_.Code.from_asset("../lambdas/get_websites"),
-            layers=[self.shared_layer],
+            layers=[self.dependencies_layer, self.shared_code_layer],
             environment=common_env,
             timeout=Duration.seconds(30),
             memory_size=256,
@@ -191,7 +199,7 @@ class InfrastructureStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="handler.lambda_handler",
             code=lambda_.Code.from_asset("../lambdas/scraper"),
-            layers=[self.shared_layer],
+            layers=[self.dependencies_layer, self.shared_code_layer],
             environment=common_env,
             timeout=Duration.seconds(300),
             memory_size=512,
@@ -204,7 +212,7 @@ class InfrastructureStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="handler.lambda_handler",
             code=lambda_.Code.from_asset("../lambdas/detector"),
-            layers=[self.shared_layer, self.detector_layer],
+            layers=[self.dependencies_layer, self.shared_code_layer, self.detector_layer],
             environment=common_env,
             timeout=Duration.seconds(300),
             memory_size=1024,
@@ -217,7 +225,7 @@ class InfrastructureStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="handler.lambda_handler",
             code=lambda_.Code.from_asset("../lambdas/predictor"),
-            layers=[self.shared_layer],
+            layers=[self.dependencies_layer, self.shared_code_layer],
             environment=common_env,
             timeout=Duration.seconds(300),
             memory_size=1024,

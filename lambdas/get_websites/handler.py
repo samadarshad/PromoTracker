@@ -2,8 +2,8 @@
 Lambda function to get all enabled websites from DynamoDB.
 """
 import json
-from dynamo_helper import DynamoDBHelper
-from logger import get_logger
+from shared.dynamo_helper import DynamoDBHelper
+from shared.logger import get_logger
 
 logger = get_logger(__name__)
 

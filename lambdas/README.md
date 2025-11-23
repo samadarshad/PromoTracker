@@ -199,7 +199,7 @@ Provides DynamoDB operations:
 ### `s3_helper.py`
 
 Provides S3 operations:
-- `upload_html(website_id, content, timestamp)`: Upload HTML to S3
+- `upload_markdown(website_id, content, timestamp)`: Upload markdown to S3
 - `download_html(s3_key)`: Download HTML from S3
 - `get_latest_html(website_id)`: Get most recent HTML
 

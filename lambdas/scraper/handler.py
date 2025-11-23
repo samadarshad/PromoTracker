@@ -10,9 +10,9 @@ from decimal import Decimal
 from typing import Dict, Any, Optional, Tuple
 import boto3
 import requests
-from dynamo_helper import DynamoDBHelper
-from s3_helper import S3Helper
-from logger import get_logger
+from shared.dynamo_helper import DynamoDBHelper
+from shared.s3_helper import S3Helper
+from shared.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -159,7 +159,7 @@ def lambda_handler(event, context):
         # Save to S3
         s3_helper = S3Helper()
         timestamp = datetime.utcnow().isoformat()
-        s3_key = s3_helper.upload_html(website_id, markdown_content, timestamp)
+        s3_key = s3_helper.upload_markdown(website_id, markdown_content, timestamp)
 
         # Save metrics
         db_helper = DynamoDBHelper()

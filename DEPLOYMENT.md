@@ -33,6 +33,63 @@ This guide walks you through deploying the PromoTracker serverless infrastructur
    python3 --version
    ```
 
+## API Keys Setup
+
+Before deploying, you need to configure API keys in AWS Systems Manager Parameter Store. The Lambda functions will securely retrieve these at runtime.
+
+### Required API Keys
+
+1. **Firecrawl API Key** - Used by the Scraper Lambda for advanced web scraping
+2. **OpenAI API Key** - Used by the Detector Lambda for promotion detection (optional for initial deployment)
+
+### Where to Get API Keys
+
+- **Firecrawl**: Sign up at [https://firecrawl.dev](https://firecrawl.dev) to get your API key
+- **OpenAI**: Create an account at [https://platform.openai.com](https://platform.openai.com) and generate an API key
+
+### Store API Keys in Parameter Store
+
+Run these commands to securely store your API keys (replace placeholders with your actual keys):
+
+```bash
+# Store Firecrawl API key
+aws ssm put-parameter \
+    --name "/PromoTracker/FirecrawlApiKey" \
+    --description "Firecrawl API key for web scraping" \
+    --value "YOUR_FIRECRAWL_API_KEY_HERE" \
+    --type "SecureString" \
+    --region eu-west-2 \
+    --overwrite
+
+# Store OpenAI API key
+aws ssm put-parameter \
+    --name "/PromoTracker/OpenAIApiKey" \
+    --description "OpenAI API key for promotion detection" \
+    --value "YOUR_OPENAI_API_KEY_HERE" \
+    --type "SecureString" \
+    --region eu-west-2 \
+    --overwrite
+```
+
+### Verify Parameters Were Created
+
+```bash
+aws ssm describe-parameters \
+    --parameter-filters "Key=Name,Option=BeginsWith,Values=/PromoTracker/" \
+    --region eu-west-2 \
+    --query 'Parameters[*].[Name, Type, Description]' \
+    --output table
+```
+
+You should see both parameters listed with type `SecureString`.
+
+### Security Notes
+
+- **SecureString encryption**: API keys are encrypted at rest using AWS KMS
+- **IAM permissions**: Lambda functions have least-privilege access to only their required parameters
+- **Cost**: Standard parameters in Parameter Store are **FREE** (no charges)
+- **Region**: Parameters must be in the same region as your Lambda functions (eu-west-2)
+
 ## Infrastructure Overview
 
 The CDK stack deploys:
@@ -128,7 +185,11 @@ InfrastructureStack.StateMachineArn = arn:aws:states:eu-west-2:...
 
 ## Post-Deployment Setup
 
-### 1. Seed Test Data
+### 1. Verify API Keys
+
+Before testing, ensure your API keys are configured in Parameter Store (see [API Keys Setup](#api-keys-setup) section above).
+
+### 2. Seed Test Data
 
 Populate the Websites table with test data:
 
@@ -139,7 +200,7 @@ python seed_test_data.py <WEBSITES_TABLE_NAME>
 
 Replace `<WEBSITES_TABLE_NAME>` with the value from CDK outputs.
 
-### 2. Test the Pipeline Manually
+### 3. Test the Pipeline Manually
 
 Trigger the Step Functions state machine:
 
@@ -151,7 +212,7 @@ aws stepfunctions start-execution \
 
 Replace `<STATE_MACHINE_ARN>` with the ARN from CDK outputs.
 
-### 3. Monitor Execution
+### 4. Monitor Execution
 
 View the execution in the AWS Console:
 1. Go to **Step Functions** → **State machines**
@@ -159,7 +220,7 @@ View the execution in the AWS Console:
 3. Click on the latest execution
 4. Watch the visual workflow
 
-### 4. Verify Data
+### 5. Verify Data
 
 Check that data was written:
 
@@ -195,6 +256,28 @@ aws cloudwatch put-metric-alarm \
 **Expected monthly cost**: $0.50 - $2.00 (staying within AWS Free Tier)
 
 ## Troubleshooting
+
+### Issue: Lambda fails with API key errors
+
+**Symptoms**: Scraper or Detector Lambda functions fail with errors like "Failed to load API key" or "Parameter not found"
+
+**Solution**:
+1. Verify API keys are stored in Parameter Store:
+```bash
+aws ssm get-parameter --name "/PromoTracker/FirecrawlApiKey" --region eu-west-2 --with-decryption
+aws ssm get-parameter --name "/PromoTracker/OpenAIApiKey" --region eu-west-2 --with-decryption
+```
+
+2. Check Lambda IAM permissions include `ssm:GetParameter`:
+```bash
+# Check scraper function role
+aws iam list-attached-role-policies --role-name InfrastructureStack-ScraperFunction*
+
+# Check detector function role
+aws iam list-attached-role-policies --role-name InfrastructureStack-DetectorFunction*
+```
+
+3. Ensure parameters are in the correct region (eu-west-2)
 
 ### Issue: Lambda deployment fails
 

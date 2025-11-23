@@ -1,5 +1,10 @@
 #!/bin/bash
 # Deployment script for PromoTracker infrastructure
+#
+# Usage:
+#   ./deploy.sh              - Normal deployment
+#   ./deploy.sh --rebuild-deps - Rebuild dependencies layer from scratch
+#                              (useful if dependencies layer has conflicts)
 
 set -e  # Exit on error
 
@@ -13,6 +18,12 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Parse arguments
+REBUILD_DEPS=false
+if [ "$1" = "--rebuild-deps" ]; then
+    REBUILD_DEPS=true
+fi
+
 # Get script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -20,27 +31,68 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 echo "Project directory: $PROJECT_DIR"
 echo ""
 
+# Optional: Rebuild dependencies layer from scratch
+if [ "$REBUILD_DEPS" = true ]; then
+    echo "🔄 Rebuilding dependencies layer from scratch..."
+    echo ""
+    
+    DEPS_DIR="$PROJECT_DIR/layers/dependencies/python"
+    
+    # Remove old dependencies
+    if [ -d "$DEPS_DIR" ]; then
+        echo "  Removing old dependencies from $DEPS_DIR..."
+        rm -rf "$DEPS_DIR"
+    fi
+    
+    # Create fresh directory structure
+    mkdir -p "$DEPS_DIR"
+    echo -e "  ${GREEN}✓${NC} Created fresh dependencies directory"
+    
+    # Install dependencies from shared_layer requirements
+    if [ -f "$PROJECT_DIR/lambdas/shared_layer/requirements.txt" ]; then
+        echo "  Installing shared layer dependencies..."
+        pip install -r "$PROJECT_DIR/lambdas/shared_layer/requirements.txt" -t "$DEPS_DIR" --upgrade --quiet
+        echo -e "  ${GREEN}✓${NC} Shared dependencies installed"
+    fi
+    
+    # Install detector layer dependencies (Linux-compatible)
+    if [ -f "$PROJECT_DIR/lambdas/detector_layer/requirements.txt" ]; then
+        echo "  Installing detector layer dependencies (Linux-compatible)..."
+        pip install --platform manylinux2014_x86_64 --target "$DEPS_DIR" --implementation cp --python-version 3.12 --only-binary=:all: -r "$PROJECT_DIR/lambdas/detector_layer/requirements.txt" --upgrade --quiet
+        echo -e "  ${GREEN}✓${NC} Detector dependencies installed"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}✓${NC} Dependencies layer rebuilt successfully"
+    echo ""
+fi
+
 # Step 1: Install Lambda layer dependencies
 echo "📦 Step 1: Installing Lambda layer dependencies..."
 
-# Install shared layer dependencies
-cd "$PROJECT_DIR/lambdas/shared_layer"
-if [ -f "requirements.txt" ]; then
-    echo "  Installing shared_layer dependencies..."
-    pip install -r requirements.txt -t python/ --upgrade --quiet
-    echo -e "  ${GREEN}✓${NC} Shared layer dependencies installed"
-else
-    echo -e "  ${YELLOW}⚠${NC} No shared_layer requirements.txt found"
-fi
+# Skip this if we already rebuilt deps
+if [ "$REBUILD_DEPS" = false ]; then
+    # Install shared layer dependencies
+    cd "$PROJECT_DIR/lambdas/shared_layer"
+    if [ -f "requirements.txt" ]; then
+        echo "  Installing shared_layer dependencies..."
+        pip install -r requirements.txt -t python/ --upgrade --quiet
+        echo -e "  ${GREEN}✓${NC} Shared layer dependencies installed"
+    else
+        echo -e "  ${YELLOW}⚠${NC} No shared_layer requirements.txt found"
+    fi
 
-# Install detector layer dependencies (with Linux compatibility)
-cd "$PROJECT_DIR/lambdas/detector_layer"
-if [ -f "requirements.txt" ]; then
-    echo "  Installing detector_layer dependencies (Linux-compatible)..."
-    pip install --platform manylinux2014_x86_64 --target python --implementation cp --python-version 3.12 --only-binary=:all: -r requirements.txt --upgrade --quiet
-    echo -e "  ${GREEN}✓${NC} Detector layer dependencies installed"
+    # Install detector layer dependencies (with Linux compatibility)
+    cd "$PROJECT_DIR/lambdas/detector_layer"
+    if [ -f "requirements.txt" ]; then
+        echo "  Installing detector_layer dependencies (Linux-compatible)..."
+        pip install --platform manylinux2014_x86_64 --target python --implementation cp --python-version 3.12 --only-binary=:all: -r requirements.txt --upgrade --quiet
+        echo -e "  ${GREEN}✓${NC} Detector layer dependencies installed"
+    else
+        echo -e "  ${YELLOW}⚠${NC} No detector_layer requirements.txt found"
+    fi
 else
-    echo -e "  ${YELLOW}⚠${NC} No detector_layer requirements.txt found"
+    echo "  (Skipping - already rebuilt dependencies)"
 fi
 echo ""
 

@@ -272,10 +272,23 @@ jobs:
           cd infrastructure
           source .venv/bin/activate
           echo "Destroying stack: $STACK_NAME"
+
+          # Try CDK destroy first (respects context and stack mappings)
           cdk destroy TestStack \
             --force \
             --context stackName="$STACK_NAME" \
-            --context prNumber="${{ github.event.pull_request.number }}" || true
+            --context prNumber="${{ github.event.pull_request.number }}" || \
+          # Fallback to direct CloudFormation deletion if CDK fails
+          aws cloudformation delete-stack \
+            --stack-name "$STACK_NAME" \
+            --region eu-west-2 || true
+
+          # Wait for stack deletion to complete (max 5 minutes)
+          echo "Waiting for stack deletion to complete..."
+          aws cloudformation wait stack-delete-complete \
+            --stack-name "$STACK_NAME" \
+            --region eu-west-2 \
+            2>/dev/null || echo "Stack deletion completed or stack not found"
 
       - name: Clean up Parameter Store
         run: |
@@ -290,5 +303,18 @@ jobs:
 
       - name: Verify cleanup
         run: |
-          echo "✅ Test stack cleanup complete"
+          echo "✅ Test stack cleanup complete for: $STACK_NAME"
           echo "PR #${{ github.event.pull_request.number }} - Merged: ${{ github.event.pull_request.merged }}"
+
+          # Verify stack is deleted
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region eu-west-2 \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DELETED")
+
+          if [ "$STACK_STATUS" = "DELETED" ] || [ "$STACK_STATUS" = "DELETE_COMPLETE" ]; then
+            echo "✅ Stack successfully deleted"
+          else
+            echo "⚠️  Stack status: $STACK_STATUS"
+          fi

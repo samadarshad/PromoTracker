@@ -78,16 +78,7 @@ jobs:
           source .venv/bin/activate
           pip install -r requirements.txt
 
-      - name: Build Lambda layers
-        run: |
-          # Build dependencies layer
-          mkdir -p layers/dependencies/python
-          pip install -r lambdas/shared_layer/requirements.txt -t layers/dependencies/python/ --upgrade
 
-          # Create empty shared code layer (no shared .py files exist currently)
-          # This is required by test_stack.py even though it's empty
-          mkdir -p layers/shared_code/python
-          touch layers/shared_code/python/.gitkeep
 
       - name: Store dummy API keys in Parameter Store
         run: |

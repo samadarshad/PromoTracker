@@ -32,6 +32,10 @@ This guide walks you through deploying the PromoTracker serverless infrastructur
    ```bash
    python3 --version
    ```
+6. **Docker** - Required for bundling Lambda dependencies
+   ```bash
+   docker --version
+   ```
 
 ## API Keys Setup
 
@@ -109,25 +113,17 @@ Use the automated deployment script:
 ./scripts/deploy.sh
 ```
 
-This script handles everything: installing Lambda dependencies, activating venv, and deploying.
+This script handles everything: installing Lambda dependencies (via Docker), activating venv, and deploying.
+**Note**: Ensure Docker is running before executing this script.
 
 ### Manual Deployment
 
 If you prefer manual control:
 
-### 1. Install Lambda Layer Dependencies
+### 1. Navigate to Infrastructure Directory
 
 ```bash
-cd lambdas/shared_layer
-pip install -r requirements.txt -t python/ --upgrade
-```
-
-**Important**: This installs `requests`, `beautifulsoup4`, and other dependencies into the shared layer that all Lambda functions use.
-
-### 2. Navigate to Infrastructure Directory
-
-```bash
-cd ../../infrastructure
+cd infrastructure
 ```
 
 ### 3. Install CDK Dependencies

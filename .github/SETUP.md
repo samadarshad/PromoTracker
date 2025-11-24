@@ -9,7 +9,7 @@ This guide will help you configure GitHub Actions for automated testing in your 
 1. Go to your GitHub repository
 2. Click **Settings** → **Secrets and variables** → **Actions**
 3. Click **New repository secret**
-4. Add the following four secrets:
+4. Add the following two secrets:
 
 #### Required Secrets
 
@@ -18,7 +18,6 @@ This guide will help you configure GitHub Actions for automated testing in your 
 | `AWS_ACCESS_KEY_ID` | AWS access key | AWS Console → IAM → Users → Security credentials |
 | `AWS_SECRET_ACCESS_KEY` | AWS secret key | Same as above |
 
-**Note**: Firecrawl and OpenAI API keys are NOT needed! The test stack uses mock API Gateway endpoints that simulate these services.
 
 ### Step 2: Create AWS IAM User for GitHub Actions
 

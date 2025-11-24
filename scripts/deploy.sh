@@ -3,8 +3,6 @@
 #
 # Usage:
 #   ./deploy.sh              - Normal deployment
-#   ./deploy.sh --rebuild-deps - Rebuild dependencies layer from scratch
-#                              (useful if dependencies layer has conflicts)
 
 set -e  # Exit on error
 
@@ -18,12 +16,6 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Parse arguments
-REBUILD_DEPS=false
-if [ "$1" = "--rebuild-deps" ]; then
-    REBUILD_DEPS=true
-fi
-
 # Get script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -31,79 +23,14 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 echo "Project directory: $PROJECT_DIR"
 echo ""
 
-# Optional: Rebuild dependencies layer from scratch
-if [ "$REBUILD_DEPS" = true ]; then
-    echo "🔄 Rebuilding dependencies layer from scratch..."
-    echo ""
-    
-    DEPS_DIR="$PROJECT_DIR/layers/dependencies/python"
-    
-    # Remove old dependencies
-    if [ -d "$DEPS_DIR" ]; then
-        echo "  Removing old dependencies from $DEPS_DIR..."
-        rm -rf "$DEPS_DIR"
-    fi
-    
-    # Create fresh directory structure
-    mkdir -p "$DEPS_DIR"
-    echo -e "  ${GREEN}✓${NC} Created fresh dependencies directory"
-    
-    # Install dependencies from shared_layer requirements
-    if [ -f "$PROJECT_DIR/lambdas/shared_layer/requirements.txt" ]; then
-        echo "  Installing shared layer dependencies..."
-        pip install -r "$PROJECT_DIR/lambdas/shared_layer/requirements.txt" -t "$DEPS_DIR" --upgrade --quiet
-        echo -e "  ${GREEN}✓${NC} Shared dependencies installed"
-    fi
-    
-    # Install detector layer dependencies (Linux-compatible)
-    if [ -f "$PROJECT_DIR/lambdas/detector_layer/requirements.txt" ]; then
-        echo "  Installing detector layer dependencies (Linux-compatible)..."
-        pip install --platform manylinux2014_x86_64 --target "$DEPS_DIR" --implementation cp --python-version 3.12 --only-binary=:all: -r "$PROJECT_DIR/lambdas/detector_layer/requirements.txt" --upgrade --quiet
-        echo -e "  ${GREEN}✓${NC} Detector dependencies installed"
-    fi
-    
-    echo ""
-    echo -e "${GREEN}✓${NC} Dependencies layer rebuilt successfully"
-    echo ""
-fi
-
-# Step 1: Install Lambda layer dependencies
-echo "📦 Step 1: Installing Lambda layer dependencies..."
-
-# Skip this if we already rebuilt deps
-if [ "$REBUILD_DEPS" = false ]; then
-    # Install shared layer dependencies
-    cd "$PROJECT_DIR/lambdas/shared_layer"
-    if [ -f "requirements.txt" ]; then
-        echo "  Installing shared_layer dependencies..."
-        pip install -r requirements.txt -t python/ --upgrade --quiet
-        echo -e "  ${GREEN}✓${NC} Shared layer dependencies installed"
-    else
-        echo -e "  ${YELLOW}⚠${NC} No shared_layer requirements.txt found"
-    fi
-
-    # Install detector layer dependencies (with Linux compatibility)
-    cd "$PROJECT_DIR/lambdas/detector_layer"
-    if [ -f "requirements.txt" ]; then
-        echo "  Installing detector_layer dependencies (Linux-compatible)..."
-        pip install --platform manylinux2014_x86_64 --target python --implementation cp --python-version 3.12 --only-binary=:all: -r requirements.txt --upgrade --quiet
-        echo -e "  ${GREEN}✓${NC} Detector layer dependencies installed"
-    else
-        echo -e "  ${YELLOW}⚠${NC} No detector_layer requirements.txt found"
-    fi
-else
-    echo "  (Skipping - already rebuilt dependencies)"
-fi
-echo ""
-
-# Step 2: Navigate to infrastructure directory
-echo "📁 Step 2: Navigating to infrastructure directory..."
+# Step 1: Navigate to infrastructure directory
+echo "📁 Step 1: Navigating to infrastructure directory..."
 cd "$PROJECT_DIR/infrastructure"
 echo -e "  ${GREEN}✓${NC} In infrastructure directory"
 echo ""
 
-# Step 3: Activate virtual environment
-echo "🐍 Step 3: Activating virtual environment..."
+# Step 2: Activate virtual environment
+echo "🐍 Step 2: Activating virtual environment..."
 if [ -d ".venv" ]; then
     source .venv/bin/activate
     echo -e "  ${GREEN}✓${NC} Virtual environment activated"
@@ -114,8 +41,8 @@ else
 fi
 echo ""
 
-# Step 4: Check if cdk is available
-echo "🔍 Step 4: Checking CDK CLI..."
+# Step 3: Check if cdk is available
+echo "🔍 Step 3: Checking CDK CLI..."
 if ! command -v cdk &> /dev/null; then
     echo -e "  ${RED}✗${NC} CDK CLI not found!"
     echo "  Install with: npm install -g aws-cdk"
@@ -128,8 +55,8 @@ CDK_VERSION=$(cdk --version)
 echo -e "  ${GREEN}✓${NC} CDK CLI found: $CDK_VERSION"
 echo ""
 
-# Step 5: Synthesize CloudFormation template
-echo "🔨 Step 5: Synthesizing CDK stack..."
+# Step 4: Synthesize CloudFormation template
+echo "🔨 Step 4: Synthesizing CDK stack..."
 if cdk synth > /dev/null 2>&1; then
     echo -e "  ${GREEN}✓${NC} Stack synthesized successfully"
 else
@@ -139,8 +66,8 @@ else
 fi
 echo ""
 
-# Step 6: Show diff (if stack already exists)
-echo "📊 Step 6: Checking for changes..."
+# Step 5: Show diff (if stack already exists)
+echo "📊 Step 5: Checking for changes..."
 if cdk diff 2>&1 | grep -q "Stack InfrastructureStack"; then
     echo "  Stack changes detected. Run 'cdk diff' to see details."
 else
@@ -148,8 +75,8 @@ else
 fi
 echo ""
 
-# Step 7: Deploy
-echo "🚀 Step 7: Deploying to AWS..."
+# Step 6: Deploy
+echo "🚀 Step 6: Deploying to AWS..."
 echo ""
 echo "This will:"
 echo "  - Create/update 4 DynamoDB tables"
@@ -168,7 +95,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Deploying..."
     echo ""
 
-    if cdk deploy --require-approval never; then
+    if cdk deploy InfrastructureStack --require-approval never; then
         echo ""
         echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
         echo -e "${GREEN}✓ Deployment successful!${NC}"

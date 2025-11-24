@@ -125,15 +125,17 @@ jobs:
             --context stackName="$STACK_NAME" \
             --context prNumber="${{ github.event.pull_request.number }}"
 
-          # Move outputs file to tests directory
-          mv test-config.json ../tests/.test-config.json
+          # Move outputs file to tests directory (go back to repo root first)
+          cd ..
+          mv infrastructure/test-config.json tests/.test-config.json
 
           # Verify file was created
-          if [ -f ../tests/.test-config.json ]; then
+          if [ -f tests/.test-config.json ]; then
             echo "✅ Test config created successfully"
-            cat ../tests/.test-config.json
+            cat tests/.test-config.json
           else
             echo "❌ Test config file not found!"
+            ls -la tests/
             exit 1
           fi
 

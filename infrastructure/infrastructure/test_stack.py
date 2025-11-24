@@ -9,6 +9,7 @@ from aws_cdk import (
     aws_stepfunctions_tasks as tasks,
     aws_iam as iam,
     aws_logs as logs,
+    aws_apigateway as apigateway,
     CfnOutput,
     Tags,
 )
@@ -174,6 +175,68 @@ class TestStack(Stack):
             description="Detector-specific dependencies (openai, beautifulsoup4, lxml) - Test"
         )
 
+        # ======================
+        # Mock API Infrastructure
+        # ======================
+
+        # Mock Firecrawl API Lambda
+        self.mock_firecrawl_fn = lambda_.Function(
+            self, "TestMockFirecrawlFunction",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="handler.lambda_handler",
+            code=lambda_.Code.from_asset("../lambdas/mock_firecrawl"),
+            timeout=Duration.seconds(10),
+            memory_size=128,
+            log_retention=logs.RetentionDays.ONE_DAY,
+            description="Mock Firecrawl API for testing"
+        )
+
+        # Mock OpenAI API Lambda
+        self.mock_openai_fn = lambda_.Function(
+            self, "TestMockOpenAIFunction",
+            runtime=lambda_.Runtime.PYTHON_3_12,
+            handler="handler.lambda_handler",
+            code=lambda_.Code.from_asset("../lambdas/mock_openai"),
+            timeout=Duration.seconds(10),
+            memory_size=128,
+            log_retention=logs.RetentionDays.ONE_DAY,
+            description="Mock OpenAI API for testing"
+        )
+
+        # API Gateway for mock APIs
+        self.mock_api = apigateway.RestApi(
+            self, "TestMockAPIGateway",
+            rest_api_name="PromoTracker-Test-Mock-API",
+            description="Mock API endpoints for testing (Firecrawl and OpenAI)",
+            deploy=True,
+            deploy_options=apigateway.StageOptions(
+                stage_name="v1",
+                throttling_rate_limit=100,
+                throttling_burst_limit=200
+            )
+        )
+
+        # Firecrawl mock endpoint: POST /v2/scrape
+        firecrawl_v2 = self.mock_api.root.add_resource("v2")
+        firecrawl_scrape = firecrawl_v2.add_resource("scrape")
+        firecrawl_scrape.add_method(
+            "POST",
+            apigateway.LambdaIntegration(self.mock_firecrawl_fn)
+        )
+
+        # OpenAI mock endpoint: POST /v1/chat/completions
+        openai_v1 = self.mock_api.root.add_resource("v1")
+        openai_chat = openai_v1.add_resource("chat")
+        openai_completions = openai_chat.add_resource("completions")
+        openai_completions.add_method(
+            "POST",
+            apigateway.LambdaIntegration(self.mock_openai_fn)
+        )
+
+        # Build mock API URLs
+        mock_firecrawl_url = f"{self.mock_api.url}v2/scrape"
+        mock_openai_url = f"{self.mock_api.url}v1"
+
         # Common environment variables for all Lambdas
         common_env = {
             "WEBSITES_TABLE": self.websites_table.table_name,
@@ -182,6 +245,9 @@ class TestStack(Stack):
             "METRICS_TABLE": self.metrics_table.table_name,
             "HTML_BUCKET": self.html_bucket.bucket_name,
             "ENVIRONMENT": env_suffix,  # Indicate test environment
+            # Mock API URLs for testing
+            "FIRECRAWL_API_URL": mock_firecrawl_url,
+            "OPENAI_API_BASE_URL": mock_openai_url,
         }
 
         # Get Websites Lambda - Test version
@@ -435,4 +501,20 @@ class TestStack(Stack):
         CfnOutput(self, "TestPredictorFunctionName",
             value=self.predictor_fn.function_name,
             description="Test Predictor Lambda function name"
+        )
+
+        # Output Mock API URLs
+        CfnOutput(self, "TestMockAPIURL",
+            value=self.mock_api.url,
+            description="Test Mock API Gateway base URL"
+        )
+
+        CfnOutput(self, "TestMockFirecrawlURL",
+            value=mock_firecrawl_url,
+            description="Test Mock Firecrawl API endpoint URL"
+        )
+
+        CfnOutput(self, "TestMockOpenAIURL",
+            value=mock_openai_url,
+            description="Test Mock OpenAI API base URL"
         )

@@ -76,10 +76,13 @@ def scrape_with_firecrawl(url: str) -> Tuple[str, float]:
         'waitFor': 0  # No wait time for JS rendering
     }
 
+    # Get Firecrawl API URL from environment (allows for mock server in tests)
+    firecrawl_api_url = os.getenv('FIRECRAWL_API_URL', 'https://api.firecrawl.dev/v2/scrape')
+
     try:
-        logger.info(f"Attempting Firecrawl v2 scrape for {url}")
+        logger.info(f"Attempting Firecrawl v2 scrape for {url} via {firecrawl_api_url}")
         response = requests.post(
-            'https://api.firecrawl.dev/v2/scrape',
+            firecrawl_api_url,
             headers=headers,
             json=payload,
             timeout=60

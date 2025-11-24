@@ -52,7 +52,13 @@ def detect_with_llm(markdown: str, website_name: str) -> Optional[Dict[str, Any]
         text = markdown[:12000]
 
         # Initialize OpenAI client
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        # Allow custom base URL for mock server in tests
+        base_url = os.getenv('OPENAI_API_BASE_URL', None)
+        if base_url:
+            logger.info(f"Using custom OpenAI base URL: {base_url}")
+            client = OpenAI(api_key=OPENAI_API_KEY, base_url=base_url)
+        else:
+            client = OpenAI(api_key=OPENAI_API_KEY)
 
         # Prepare prompt for GPT
         prompt = f"""You are analyzing the website content for {website_name} to detect if there are any active promotions, sales, or special offers.

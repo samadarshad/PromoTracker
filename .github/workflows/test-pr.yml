@@ -121,9 +121,21 @@ jobs:
           echo "Deploying stack: $STACK_NAME"
           cdk deploy TestStack \
             --require-approval never \
-            --outputs-file ../tests/.test-config.json \
+            --outputs-file test-config.json \
             --context stackName="$STACK_NAME" \
             --context prNumber="${{ github.event.pull_request.number }}"
+
+          # Move outputs file to tests directory
+          mv test-config.json ../tests/.test-config.json
+
+          # Verify file was created
+          if [ -f ../tests/.test-config.json ]; then
+            echo "✅ Test config created successfully"
+            cat ../tests/.test-config.json
+          else
+            echo "❌ Test config file not found!"
+            exit 1
+          fi
 
           echo "deployed=true" >> $GITHUB_OUTPUT
 

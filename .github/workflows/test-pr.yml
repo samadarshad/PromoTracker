@@ -43,6 +43,9 @@ jobs:
     outputs:
       stack-deployed: ${{ steps.deploy.outputs.deployed }}
 
+    env:
+      STACK_NAME: TestStack-PR-${{ github.event.pull_request.number }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -89,8 +92,9 @@ jobs:
       - name: Store dummy API keys in Parameter Store
         run: |
           # Store dummy Firecrawl API key (not used - mock server will handle requests)
+          # Use PR-specific parameter names to avoid conflicts
           aws ssm put-parameter \
-            --name "/PromoTracker/Test/FirecrawlApiKey" \
+            --name "/PromoTracker/Test/PR-${{ github.event.pull_request.number }}/FirecrawlApiKey" \
             --value "test-firecrawl-api-key-dummy" \
             --type "SecureString" \
             --region eu-west-2 \
@@ -98,7 +102,7 @@ jobs:
 
           # Store dummy OpenAI API key (not used - mock server will handle requests)
           aws ssm put-parameter \
-            --name "/PromoTracker/Test/OpenAIApiKey" \
+            --name "/PromoTracker/Test/PR-${{ github.event.pull_request.number }}/OpenAIApiKey" \
             --value "test-openai-api-key-dummy" \
             --type "SecureString" \
             --region eu-west-2 \
@@ -113,8 +117,13 @@ jobs:
           # Bootstrap CDK if needed
           cdk bootstrap aws://034894101750/eu-west-2 || true
 
-          # Deploy test stack
-          cdk deploy TestStack --require-approval never --outputs-file ../tests/.test-config.json
+          # Deploy test stack with PR-specific name
+          echo "Deploying stack: $STACK_NAME"
+          cdk deploy TestStack \
+            --require-approval never \
+            --outputs-file ../tests/.test-config.json \
+            --context stackName="$STACK_NAME" \
+            --context prNumber="${{ github.event.pull_request.number }}"
 
           echo "deployed=true" >> $GITHUB_OUTPUT
 
@@ -209,6 +218,9 @@ jobs:
     # Only run on closed/merged PRs, not on new commits
     if: github.event.action == 'closed'
 
+    env:
+      STACK_NAME: TestStack-PR-${{ github.event.pull_request.number }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -242,9 +254,10 @@ jobs:
 
       - name: Empty S3 bucket
         run: |
-          # Get bucket name from stack outputs
+          # Get bucket name from PR-specific stack outputs
+          echo "Looking for stack: $STACK_NAME"
           BUCKET_NAME=$(aws cloudformation describe-stacks \
-            --stack-name TestStack \
+            --stack-name "$STACK_NAME" \
             --region eu-west-2 \
             --query 'Stacks[0].Outputs[?OutputKey==`TestHtmlBucketName`].OutputValue' \
             --output text 2>/dev/null || echo "")
@@ -258,17 +271,21 @@ jobs:
         run: |
           cd infrastructure
           source .venv/bin/activate
-          cdk destroy TestStack --force || true
+          echo "Destroying stack: $STACK_NAME"
+          cdk destroy TestStack \
+            --force \
+            --context stackName="$STACK_NAME" \
+            --context prNumber="${{ github.event.pull_request.number }}" || true
 
       - name: Clean up Parameter Store
         run: |
-          # Remove test API keys
+          # Remove PR-specific test API keys
           aws ssm delete-parameter \
-            --name "/PromoTracker/Test/FirecrawlApiKey" \
+            --name "/PromoTracker/Test/PR-${{ github.event.pull_request.number }}/FirecrawlApiKey" \
             --region eu-west-2 || true
 
           aws ssm delete-parameter \
-            --name "/PromoTracker/Test/OpenAIApiKey" \
+            --name "/PromoTracker/Test/PR-${{ github.event.pull_request.number }}/OpenAIApiKey" \
             --region eu-west-2 || true
 
       - name: Verify cleanup

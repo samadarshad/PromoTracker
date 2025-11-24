@@ -16,7 +16,9 @@ InfrastructureStack(app, "InfrastructureStack",
 
 # Test stack (only deployed when explicitly requested)
 # Deploy with: cdk deploy TestStack
-TestStack(app, "TestStack",
+# For PR-specific deployments: cdk deploy TestStack --context stackName=TestStack-PR-123 --context prNumber=123
+stack_name = app.node.try_get_context("stackName") or "TestStack"
+TestStack(app, stack_name,
     env=cdk.Environment(account='034894101750', region='eu-west-2'),
     env_suffix="test"
     )

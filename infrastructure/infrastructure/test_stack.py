@@ -24,10 +24,16 @@ class TestStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, env_suffix: str = "test", **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        # Get PR number from context for unique naming
+        pr_number = self.node.try_get_context("prNumber")
+        pr_suffix = f"-PR-{pr_number}" if pr_number else ""
+
         # Tag all resources for easy identification
         Tags.of(self).add("Environment", env_suffix)
         Tags.of(self).add("Purpose", "Testing")
         Tags.of(self).add("ManagedBy", "CDK")
+        if pr_number:
+            Tags.of(self).add("PRNumber", str(pr_number))
 
         # ======================
         # DynamoDB Tables (Test Configuration)
@@ -319,22 +325,27 @@ class TestStack(Stack):
         self.html_bucket.grant_read(self.detector_fn)
 
         # Grant Parameter Store access to scraper Lambda (for test Firecrawl API key)
+        # Use PR-specific parameter path if PR number is provided
+        firecrawl_param_path = f"/PromoTracker/Test/PR-{pr_number}/FirecrawlApiKey" if pr_number else "/PromoTracker/Test/FirecrawlApiKey"
         self.scraper_fn.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ssm:GetParameter"],
                 resources=[
-                    f"arn:aws:ssm:eu-west-2:{self.account}:parameter/PromoTracker/Test/FirecrawlApiKey",
+                    f"arn:aws:ssm:eu-west-2:{self.account}:parameter{firecrawl_param_path}",
+                    f"arn:aws:ssm:eu-west-2:{self.account}:parameter/PromoTracker/Test/FirecrawlApiKey",  # Fallback to generic test
                     f"arn:aws:ssm:eu-west-2:{self.account}:parameter/PromoTracker/FirecrawlApiKey"  # Fallback to prod
                 ]
             )
         )
 
         # Grant Parameter Store access to detector Lambda (for test OpenAI API key)
+        openai_param_path = f"/PromoTracker/Test/PR-{pr_number}/OpenAIApiKey" if pr_number else "/PromoTracker/Test/OpenAIApiKey"
         self.detector_fn.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ssm:GetParameter"],
                 resources=[
-                    f"arn:aws:ssm:eu-west-2:{self.account}:parameter/PromoTracker/Test/OpenAIApiKey",
+                    f"arn:aws:ssm:eu-west-2:{self.account}:parameter{openai_param_path}",
+                    f"arn:aws:ssm:eu-west-2:{self.account}:parameter/PromoTracker/Test/OpenAIApiKey",  # Fallback to generic test
                     f"arn:aws:ssm:eu-west-2:{self.account}:parameter/PromoTracker/OpenAIApiKey"  # Fallback to prod
                 ]
             )

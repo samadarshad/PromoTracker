@@ -43,6 +43,9 @@ jobs:
     outputs:
       stack-deployed: ${{ steps.deploy.outputs.deployed }}
 
+    env:
+      STACK_NAME: TestStack-PR-${{ github.event.pull_request.number }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -75,21 +78,14 @@ jobs:
           source .venv/bin/activate
           pip install -r requirements.txt
 
-      - name: Build Lambda layers
-        run: |
-          # Build dependencies layer
-          mkdir -p layers/dependencies/python
-          pip install -r lambdas/shared_layer/requirements.txt -t layers/dependencies/python/ --upgrade
 
-          # Build shared code layer
-          mkdir -p layers/shared_code/python
-          cp -r lambdas/shared_layer/*.py layers/shared_code/python/
 
       - name: Store dummy API keys in Parameter Store
         run: |
           # Store dummy Firecrawl API key (not used - mock server will handle requests)
+          # Use PR-specific parameter names to avoid conflicts
           aws ssm put-parameter \
-            --name "/PromoTracker/Test/FirecrawlApiKey" \
+            --name "/PromoTracker/Test/PR-${{ github.event.pull_request.number }}/FirecrawlApiKey" \
             --value "test-firecrawl-api-key-dummy" \
             --type "SecureString" \
             --region eu-west-2 \
@@ -97,7 +93,7 @@ jobs:
 
           # Store dummy OpenAI API key (not used - mock server will handle requests)
           aws ssm put-parameter \
-            --name "/PromoTracker/Test/OpenAIApiKey" \
+            --name "/PromoTracker/Test/PR-${{ github.event.pull_request.number }}/OpenAIApiKey" \
             --value "test-openai-api-key-dummy" \
             --type "SecureString" \
             --region eu-west-2 \
@@ -112,16 +108,51 @@ jobs:
           # Bootstrap CDK if needed
           cdk bootstrap aws://034894101750/eu-west-2 || true
 
-          # Deploy test stack
-          cdk deploy TestStack --require-approval never --outputs-file ../tests/.test-config.json
+          # Deploy test stack with PR-specific name
+          echo "Deploying stack: $STACK_NAME"
+          echo "Current directory: $(pwd)"
 
-          echo "deployed=true" >> $GITHUB_OUTPUT
+          cdk deploy TestStack \
+            --require-approval never \
+            --outputs-file ../tests/test-config.json \
+            --context stackName="$STACK_NAME" \
+            --context prNumber="${{ github.event.pull_request.number }}"
+
+          # Debug: Check if outputs file was created
+          echo "After CDK deploy, checking for outputs file..."
+          ls -la ../tests/test-config.json || echo "../tests/test-config.json not found"
+
+          # Verify file was created
+          if [ -f ../tests/test-config.json ]; then
+            echo "✅ Test config created successfully"
+            cat ../tests/test-config.json
+            echo "deployed=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Test config file not found!"
+            echo "Files in tests/:"
+            ls -la ../tests/
+            exit 1
+          fi
+
+      - name: Debug - Check file before upload
+        run: |
+          echo "About to upload artifact, checking file existence..."
+          echo "Current directory: $(pwd)"
+          ls -la tests/ || echo "tests directory not found"
+          if [ -f tests/test-config.json ]; then
+            echo "✅ File exists: tests/test-config.json"
+            echo "File size: $(wc -c < tests/test-config.json) bytes"
+          else
+            echo "❌ File not found: tests/test-config.json"
+            echo "All files in current directory:"
+            find . -name "*test-config*" -type f
+          fi
 
       - name: Upload test config
         uses: actions/upload-artifact@v4
         with:
-          name: test-config
-          path: tests/.test-config.json
+          name: test-config-pr-${{ github.event.pull_request.number }}
+          path: tests/test-config.json
           retention-days: 1
 
   integration-tests:
@@ -149,7 +180,7 @@ jobs:
       - name: Download test config
         uses: actions/download-artifact@v4
         with:
-          name: test-config
+          name: test-config-pr-${{ github.event.pull_request.number }}
           path: tests/
 
       - name: Install test dependencies
@@ -185,7 +216,7 @@ jobs:
       - name: Download test config
         uses: actions/download-artifact@v4
         with:
-          name: test-config
+          name: test-config-pr-${{ github.event.pull_request.number }}
           path: tests/
 
       - name: Install test dependencies
@@ -207,6 +238,9 @@ jobs:
     runs-on: ubuntu-latest
     # Only run on closed/merged PRs, not on new commits
     if: github.event.action == 'closed'
+
+    env:
+      STACK_NAME: TestStack-PR-${{ github.event.pull_request.number }}
 
     steps:
       - name: Checkout code
@@ -241,9 +275,10 @@ jobs:
 
       - name: Empty S3 bucket
         run: |
-          # Get bucket name from stack outputs
+          # Get bucket name from PR-specific stack outputs
+          echo "Looking for stack: $STACK_NAME"
           BUCKET_NAME=$(aws cloudformation describe-stacks \
-            --stack-name TestStack \
+            --stack-name "$STACK_NAME" \
             --region eu-west-2 \
             --query 'Stacks[0].Outputs[?OutputKey==`TestHtmlBucketName`].OutputValue' \
             --output text 2>/dev/null || echo "")
@@ -257,20 +292,50 @@ jobs:
         run: |
           cd infrastructure
           source .venv/bin/activate
-          cdk destroy TestStack --force || true
+          echo "Destroying stack: $STACK_NAME"
+
+          # Try CDK destroy first (respects context and stack mappings)
+          cdk destroy TestStack \
+            --force \
+            --context stackName="$STACK_NAME" \
+            --context prNumber="${{ github.event.pull_request.number }}" || \
+          # Fallback to direct CloudFormation deletion if CDK fails
+          aws cloudformation delete-stack \
+            --stack-name "$STACK_NAME" \
+            --region eu-west-2 || true
+
+          # Wait for stack deletion to complete (max 5 minutes)
+          echo "Waiting for stack deletion to complete..."
+          aws cloudformation wait stack-delete-complete \
+            --stack-name "$STACK_NAME" \
+            --region eu-west-2 \
+            2>/dev/null || echo "Stack deletion completed or stack not found"
 
       - name: Clean up Parameter Store
         run: |
-          # Remove test API keys
+          # Remove PR-specific test API keys
           aws ssm delete-parameter \
-            --name "/PromoTracker/Test/FirecrawlApiKey" \
+            --name "/PromoTracker/Test/PR-${{ github.event.pull_request.number }}/FirecrawlApiKey" \
             --region eu-west-2 || true
 
           aws ssm delete-parameter \
-            --name "/PromoTracker/Test/OpenAIApiKey" \
+            --name "/PromoTracker/Test/PR-${{ github.event.pull_request.number }}/OpenAIApiKey" \
             --region eu-west-2 || true
 
       - name: Verify cleanup
         run: |
-          echo "✅ Test stack cleanup complete"
+          echo "✅ Test stack cleanup complete for: $STACK_NAME"
           echo "PR #${{ github.event.pull_request.number }} - Merged: ${{ github.event.pull_request.merged }}"
+
+          # Verify stack is deleted
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --region eu-west-2 \
+            --query 'Stacks[0].StackStatus' \
+            --output text 2>/dev/null || echo "DELETED")
+
+          if [ "$STACK_STATUS" = "DELETED" ] || [ "$STACK_STATUS" = "DELETE_COMPLETE" ]; then
+            echo "✅ Stack successfully deleted"
+          else
+            echo "⚠️  Stack status: $STACK_STATUS"
+          fi

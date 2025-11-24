@@ -1,0 +1,9 @@
+Outputs:
+InfrastructureStack.HtmlBucketName = infrastructurestack-htmlbucket7a8a5f24-uqheu5wzuhqq
+InfrastructureStack.MetricsTableName = InfrastructureStack-ScrapingMetricsTableAC4738D6-5DKZW10WHX5Q
+InfrastructureStack.PredictionsTableName = InfrastructureStack-PredictionsTable49E6614E-1EP93FQJNHZQM
+InfrastructureStack.PromotionsTableName = InfrastructureStack-PromotionsTableA9094673-VQ3ZWF8QIDHE
+InfrastructureStack.StateMachineArn = arn:aws:states:eu-west-2:034894101750:stateMachine:PromoTrackerStateMachine85998FD5-d3p2zX9bD0bv
+InfrastructureStack.WebsitesTableName = InfrastructureStack-WebsitesTable53D79BA0-1LUV2XEIVM3FF
+Stack ARN:
+arn:aws:cloudformation:eu-west-2:034894101750:stack/InfrastructureStack/e0f5dbb0-c68e-11f0-bd2f-0633fc43b713

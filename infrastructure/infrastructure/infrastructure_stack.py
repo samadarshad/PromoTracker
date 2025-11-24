@@ -13,6 +13,7 @@ from aws_cdk import (
     aws_logs as logs,
     aws_secretsmanager as secretsmanager,
     CfnOutput,
+    BundlingOptions,
 )
 from constructs import Construct
 
@@ -158,7 +159,16 @@ class InfrastructureStack(Stack):
         # Dependencies layer (third-party packages: boto3, requests, etc.)
         self.dependencies_layer = lambda_.LayerVersion(
             self, "DependenciesLayer",
-            code=lambda_.Code.from_asset("../layers/dependencies"),
+            code=lambda_.Code.from_asset(
+                "../layers/dependencies",
+                bundling=BundlingOptions(
+                    image=lambda_.Runtime.PYTHON_3_12.bundling_image,
+                    command=[
+                        "bash", "-c",
+                        "pip install -r requirements.txt -t /asset-output/python"
+                    ]
+                )
+            ),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
             description="Third-party dependencies (boto3, requests, pydantic, etc.)"
         )
@@ -166,7 +176,16 @@ class InfrastructureStack(Stack):
         # Detector-specific layer for LLM dependencies
         self.detector_layer = lambda_.LayerVersion(
             self, "DetectorLayer",
-            code=lambda_.Code.from_asset("../lambdas/detector_layer"),
+            code=lambda_.Code.from_asset(
+                "../lambdas/detector_layer",
+                bundling=BundlingOptions(
+                    image=lambda_.Runtime.PYTHON_3_12.bundling_image,
+                    command=[
+                        "bash", "-c",
+                        "pip install -r requirements.txt -t /asset-output/python"
+                    ]
+                )
+            ),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
             description="Detector-specific dependencies (openai, beautifulsoup4, lxml)"
         )

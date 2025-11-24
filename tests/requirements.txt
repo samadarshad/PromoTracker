@@ -1,0 +1,16 @@
+# Testing dependencies for PromoTracker serverless application
+
+# Core testing framework
+pytest==8.0.0
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+
+# AWS SDK and mocking
+boto3>=1.34.0
+moto[all]==5.0.0
+
+# HTTP mocking for external APIs
+responses==0.24.1
+
+# Additional utilities
+python-dotenv==1.0.0

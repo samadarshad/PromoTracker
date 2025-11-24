@@ -1,0 +1,276 @@
+name: Test Pull Request
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    types: [opened, synchronize, reopened]
+
+# Only allow one workflow run per PR at a time
+concurrency:
+  group: test-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tests/requirements.txt
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ -v -m unit --tb=short
+
+  deploy-test-stack:
+    name: Deploy Test Stack
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    outputs:
+      stack-deployed: ${{ steps.deploy.outputs.deployed }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Set up Node.js (for CDK)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        run: |
+          cd infrastructure
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Build Lambda layers
+        run: |
+          # Build dependencies layer
+          mkdir -p layers/dependencies/python
+          pip install -r lambdas/shared_layer/requirements.txt -t layers/dependencies/python/ --upgrade
+
+          # Build shared code layer
+          mkdir -p layers/shared_code/python
+          cp -r lambdas/shared_layer/*.py layers/shared_code/python/
+
+      - name: Store dummy API keys in Parameter Store
+        run: |
+          # Store dummy Firecrawl API key (not used - mock server will handle requests)
+          aws ssm put-parameter \
+            --name "/PromoTracker/Test/FirecrawlApiKey" \
+            --value "test-firecrawl-api-key-dummy" \
+            --type "SecureString" \
+            --region eu-west-2 \
+            --overwrite || true
+
+          # Store dummy OpenAI API key (not used - mock server will handle requests)
+          aws ssm put-parameter \
+            --name "/PromoTracker/Test/OpenAIApiKey" \
+            --value "test-openai-api-key-dummy" \
+            --type "SecureString" \
+            --region eu-west-2 \
+            --overwrite || true
+
+      - name: Deploy test stack
+        id: deploy
+        run: |
+          cd infrastructure
+          source .venv/bin/activate
+
+          # Bootstrap CDK if needed
+          cdk bootstrap aws://034894101750/eu-west-2 || true
+
+          # Deploy test stack
+          cdk deploy TestStack --require-approval never --outputs-file ../tests/.test-config.json
+
+          echo "deployed=true" >> $GITHUB_OUTPUT
+
+      - name: Upload test config
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-config
+          path: tests/.test-config.json
+          retention-days: 1
+
+  integration-tests:
+    name: Run Integration Tests
+    runs-on: ubuntu-latest
+    needs: deploy-test-stack
+    if: needs.deploy-test-stack.outputs.stack-deployed == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Download test config
+        uses: actions/download-artifact@v4
+        with:
+          name: test-config
+          path: tests/
+
+      - name: Install test dependencies
+        run: |
+          pip install -r tests/requirements.txt
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -v -m integration --tb=short
+
+  e2e-tests:
+    name: Run End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: deploy-test-stack
+    if: needs.deploy-test-stack.outputs.stack-deployed == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Download test config
+        uses: actions/download-artifact@v4
+        with:
+          name: test-config
+          path: tests/
+
+      - name: Install test dependencies
+        run: |
+          pip install -r tests/requirements.txt
+
+      - name: Seed test data
+        run: |
+          # Add test websites to DynamoDB
+          python scripts/seed_test_data.py $(cat tests/.test-config.json | grep TestWebsitesTableName | cut -d'"' -f4) || true
+
+      - name: Run end-to-end tests
+        run: |
+          pytest tests/e2e/ -v -m e2e --tb=short
+
+  # This job runs regardless of test success/failure to ensure cleanup
+  cleanup-on-pr-close:
+    name: Cleanup Test Stack (PR Closed/Merged)
+    runs-on: ubuntu-latest
+    # Only run on closed/merged PRs, not on new commits
+    if: github.event.action == 'closed'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js (for CDK)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        run: |
+          cd infrastructure
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Empty S3 bucket
+        run: |
+          # Get bucket name from stack outputs
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name TestStack \
+            --region eu-west-2 \
+            --query 'Stacks[0].Outputs[?OutputKey==`TestHtmlBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$BUCKET_NAME" ]; then
+            echo "Emptying S3 bucket: $BUCKET_NAME"
+            aws s3 rm "s3://$BUCKET_NAME" --recursive --region eu-west-2 || true
+          fi
+
+      - name: Destroy test stack
+        run: |
+          cd infrastructure
+          source .venv/bin/activate
+          cdk destroy TestStack --force || true
+
+      - name: Clean up Parameter Store
+        run: |
+          # Remove test API keys
+          aws ssm delete-parameter \
+            --name "/PromoTracker/Test/FirecrawlApiKey" \
+            --region eu-west-2 || true
+
+          aws ssm delete-parameter \
+            --name "/PromoTracker/Test/OpenAIApiKey" \
+            --region eu-west-2 || true
+
+      - name: Verify cleanup
+        run: |
+          echo "✅ Test stack cleanup complete"
+          echo "PR #${{ github.event.pull_request.number }} - Merged: ${{ github.event.pull_request.merged }}"

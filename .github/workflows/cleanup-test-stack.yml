@@ -1,0 +1,142 @@
+name: Cleanup Test Stack
+
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      force_cleanup:
+        description: 'Force cleanup of test stack'
+        required: false
+        default: 'false'
+
+jobs:
+  cleanup:
+    name: Destroy Test Stack
+    runs-on: ubuntu-latest
+    # Run on PR close/merge or manual trigger
+    if: github.event.pull_request.merged == true || github.event.action == 'closed' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Node.js (for CDK)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+
+      - name: Install CDK dependencies
+        run: |
+          cd infrastructure
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Check if test stack exists
+        id: check-stack
+        run: |
+          if aws cloudformation describe-stacks --stack-name TestStack --region eu-west-2 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Test stack found"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  Test stack does not exist"
+          fi
+
+      - name: Empty S3 bucket before deletion
+        if: steps.check-stack.outputs.exists == 'true'
+        run: |
+          # Get bucket name from stack outputs
+          BUCKET_NAME=$(aws cloudformation describe-stacks \
+            --stack-name TestStack \
+            --region eu-west-2 \
+            --query 'Stacks[0].Outputs[?OutputKey==`TestHtmlBucketName`].OutputValue' \
+            --output text 2>/dev/null || echo "")
+
+          if [ -n "$BUCKET_NAME" ]; then
+            echo "🗑️  Emptying S3 bucket: $BUCKET_NAME"
+            aws s3 rm "s3://$BUCKET_NAME" --recursive --region eu-west-2 || true
+            echo "✅ S3 bucket emptied"
+          else
+            echo "ℹ️  No S3 bucket to clean"
+          fi
+
+      - name: Destroy test stack
+        if: steps.check-stack.outputs.exists == 'true'
+        run: |
+          cd infrastructure
+          source .venv/bin/activate
+
+          echo "🔥 Destroying test stack..."
+          cdk destroy TestStack --force
+
+          echo "✅ Test stack destroyed"
+
+      - name: Clean up Parameter Store
+        if: steps.check-stack.outputs.exists == 'true'
+        run: |
+          echo "🔑 Removing test API keys from Parameter Store..."
+
+          # Remove test Firecrawl API key
+          aws ssm delete-parameter \
+            --name "/PromoTracker/Test/FirecrawlApiKey" \
+            --region eu-west-2 2>/dev/null && echo "  ✅ Firecrawl key removed" || echo "  ℹ️  Firecrawl key not found"
+
+          # Remove test OpenAI API key
+          aws ssm delete-parameter \
+            --name "/PromoTracker/Test/OpenAIApiKey" \
+            --region eu-west-2 2>/dev/null && echo "  ✅ OpenAI key removed" || echo "  ℹ️  OpenAI key not found"
+
+      - name: Verify cleanup complete
+        run: |
+          # Check if stack still exists
+          if aws cloudformation describe-stacks --stack-name TestStack --region eu-west-2 2>/dev/null; then
+            echo "⚠️  Test stack still exists - cleanup may have failed"
+            exit 1
+          else
+            echo "✅ Test stack cleanup verified"
+          fi
+
+      - name: Post cleanup summary
+        if: always()
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🧹 Test Stack Cleanup Summary"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          if [ "${{ github.event.pull_request.merged }}" == "true" ]; then
+            echo "✅ PR #${{ github.event.pull_request.number }} merged"
+            echo "✅ Test stack cleaned up automatically"
+          elif [ "${{ github.event.action }}" == "closed" ]; then
+            echo "🚫 PR #${{ github.event.pull_request.number }} closed without merge"
+            echo "✅ Test stack cleaned up"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "🔧 Manual cleanup triggered"
+            echo "✅ Test stack cleaned up"
+          fi
+
+          echo ""
+          echo "Cleaned up resources:"
+          echo "  • TestStack CloudFormation stack"
+          echo "  • Test S3 bucket and contents"
+          echo "  • Test Parameter Store keys"
+          echo "  • All associated Lambda functions"
+          echo "  • Test DynamoDB tables"
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

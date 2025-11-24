@@ -123,59 +123,36 @@ jobs:
 
           cdk deploy TestStack \
             --require-approval never \
-            --outputs-file test-config.json \
+            --outputs-file ../tests/test-config.json \
             --context stackName="$STACK_NAME" \
             --context prNumber="${{ github.event.pull_request.number }}"
 
           # Debug: Check if outputs file was created
           echo "After CDK deploy, checking for outputs file..."
-          ls -la test-config.json || echo "test-config.json not found in $(pwd)"
-          ls -la ../tests/ || echo "tests directory not found"
-
-          # Move outputs file to tests directory (go back to repo root first)
-          cd ..
-          echo "Changed to repo root: $(pwd)"
-          ls -la infrastructure/test-config.json || echo "infrastructure/test-config.json not found"
-
-          # Check if tests directory exists
-          if [ ! -d tests ]; then
-            echo "Creating tests directory..."
-            mkdir -p tests
-          fi
-
-          # Move the file
-          if [ -f infrastructure/test-config.json ]; then
-            mv infrastructure/test-config.json tests/.test-config.json
-            echo "✅ Moved test-config.json to tests/"
-          else
-            echo "❌ infrastructure/test-config.json not found!"
-            echo "Files in infrastructure/:"
-            ls -la infrastructure/
-            exit 1
-          fi
+          ls -la ../tests/test-config.json || echo "../tests/test-config.json not found"
 
           # Verify file was created
-          if [ -f tests/.test-config.json ]; then
+          if [ -f ../tests/test-config.json ]; then
             echo "✅ Test config created successfully"
-            cat tests/.test-config.json
+            cat ../tests/test-config.json
+            echo "deployed=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ Test config file not found in tests/!"
-            ls -la tests/
+            echo "❌ Test config file not found!"
+            echo "Files in tests/:"
+            ls -la ../tests/
             exit 1
           fi
-
-          echo "deployed=true" >> $GITHUB_OUTPUT
 
       - name: Debug - Check file before upload
         run: |
           echo "About to upload artifact, checking file existence..."
           echo "Current directory: $(pwd)"
           ls -la tests/ || echo "tests directory not found"
-          if [ -f tests/.test-config.json ]; then
-            echo "✅ File exists: tests/.test-config.json"
-            echo "File size: $(wc -c < tests/.test-config.json) bytes"
+          if [ -f tests/test-config.json ]; then
+            echo "✅ File exists: tests/test-config.json"
+            echo "File size: $(wc -c < tests/test-config.json) bytes"
           else
-            echo "❌ File not found: tests/.test-config.json"
+            echo "❌ File not found: tests/test-config.json"
             echo "All files in current directory:"
             find . -name "*test-config*" -type f
           fi
@@ -184,7 +161,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-config-pr-${{ github.event.pull_request.number }}
-          path: tests/.test-config.json
+          path: tests/test-config.json
           retention-days: 1
 
   integration-tests:

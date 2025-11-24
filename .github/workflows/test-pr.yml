@@ -130,7 +130,7 @@ jobs:
       - name: Upload test config
         uses: actions/upload-artifact@v4
         with:
-          name: test-config
+          name: test-config-pr-${{ github.event.pull_request.number }}
           path: tests/.test-config.json
           retention-days: 1
 
@@ -159,7 +159,7 @@ jobs:
       - name: Download test config
         uses: actions/download-artifact@v4
         with:
-          name: test-config
+          name: test-config-pr-${{ github.event.pull_request.number }}
           path: tests/
 
       - name: Install test dependencies
@@ -195,7 +195,7 @@ jobs:
       - name: Download test config
         uses: actions/download-artifact@v4
         with:
-          name: test-config
+          name: test-config-pr-${{ github.event.pull_request.number }}
           path: tests/
 
       - name: Install test dependencies
